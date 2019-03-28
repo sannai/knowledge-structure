@@ -1,0 +1,188 @@
+<template>
+    <div class="container">
+        <div>知识脉络图测试</div>
+        <svg id="chart">
+            <defs>
+                <linearGradient id="orange_red" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" style="stop-color:rgb(255,255,0);stop-opacity:1"></stop>
+                    <stop offset="100%" style="stop-color:rgb(255,0,0);stop-opacity:1"></stop>
+                </linearGradient>
+            </defs>
+        </svg>
+    </div>
+</template>
+<script>
+import * as d3 from "d3";
+export default {
+    name: "App",
+    data() {
+        return {
+            myData: {},
+            // color: ['rgb(163, 245, 207)', 'rgb(116, 215, 202)','rgb(81, 183, 196)','rgb(66, 150, 183)','rgb(67, 117, 162)','rgb(71, 84, 133)'],
+            color: d3
+                .scaleLinear()
+                .domain([0, 5])
+                .range(["hsl(152,80%,80%)", "hsl(228,30%,40%)"])
+                .interpolate(d3.interpolateHcl),
+            width: 800,
+            height: 800
+        };
+    },
+    mounted() {
+        d3.json(
+            "http://localhost:3000/api"
+            // "https://raw.githubusercontent.com/d3/d3-hierarchy/v1.1.8/test/data/flare.json"
+        ).then(data => {
+            console.log(data);
+            this.myData = data.data;
+        });
+    },
+    computed: {
+        myPack() {
+            return d3
+                .pack()
+                .size([this.width, this.height])
+                .padding(d => (d.depth === 0 ? 100 : 3))(
+                d3
+                    .hierarchy(this.myData)
+                    .sum(d => d.value)
+                    .sort((a, b) => b.value - a.value)
+            );
+        }
+    },
+    watch: {
+        myPack() {
+            const width = 800;
+            const height = 800;
+            let view;
+            let focus = this.myPack;
+            const svg = d3
+                .select("#chart")
+                .attr(
+                    "viewBox",
+                    `-${width / 2} -${height / 2} ${width} ${height}`
+                );
+            function zoom(d) {
+                const focus0 = focus;
+                focus = d;
+                const transition = svg
+                    .transition()
+                    .duration(d3.event.altKey ? 7500 : 750)
+                    .tween("zoom", d => {
+                        const i = d3.interpolateZoom(view, [
+                            focus.x,
+                            focus.y,
+                            focus.r * 2
+                        ]);
+                        return t => zoomTo(i(t));
+                    });
+
+                label
+                    .filter(function(d) {
+                        return (
+                            d.parent === focus ||
+                            this.style.display === "inline"
+                        );
+                    })
+                    .transition(transition)
+                    .style("fill-opacity", d => (d.parent === focus ? 1 : 0))
+                    .on("start", function(d) {
+                        if (d.parent === focus) this.style.display = "inline";
+                    })
+                    .on("end", function(d) {
+                        if (d.parent !== focus) this.style.display = "none";
+                    });
+            }
+            function zoomTo(v) {
+                const k = width / v[2];
+                view = v;
+                label.attr(
+                    "transform",
+                    d => `translate(${(d.x - v[0]) * k},${(d.y - v[1]) * k})`
+                );
+                node.attr(
+                    "transform",
+                    d => `translate(${(d.x - v[0]) * k},${(d.y - v[1]) * k})`
+                );
+                node.attr("r", d => d.r * k);
+            }
+            const node = svg
+                .append("g")
+                .selectAll("circle")
+                .data(this.myPack.descendants().slice(1))
+                .join("circle")
+                .attr("r", d => d.r)
+                .attr("fill", d => (d.children ? this.color(d.depth) : "white"))
+                .attr("pointer-events", d => (!d.children ? "none" : null))
+                .on("mouseover", function() {
+                    d3.select(this).attr("stroke", "#000");
+                })
+                .on("mouseout", function() {
+                    d3.select(this).attr("stroke", null);
+                })
+                .on("click", d =>
+                    focus !== d
+                        ? (zoom(d), d3.event.stopPropagation())
+                        : (zoom(d.parent), d3.event.stopPropagation())
+                );
+            const label = svg
+                .append("g")
+                .style("font", "16px sans-serif")
+                .attr("pointer-events", "none")
+                .attr("text-anchor", "middle")
+                .selectAll("text")
+                .data(this.myPack.descendants())
+                .join("text")
+                .style("fill-opacity", d => (d.parent === this.myPack ? 1 : 0))
+                .style("display", d =>
+                    d.parent === this.myPack ? "inline" : "none"
+                )
+                .text(d => d.data.name);
+            zoomTo([this.myPack.x, this.myPack.y, this.myPack.r * 2]);
+            var defs = svg.append("defs");
+
+            var arrowMarker = defs
+                .append("marker")
+                .attr("id", "arrow")
+                .attr("markerUnits", "strokeWidth")
+                .attr("markerWidth", "12")
+                .attr("markerHeight", "12")
+                .attr("viewBox", "0 0 12 12")
+                .attr("refX", "6")
+                .attr("refY", "6")
+                .attr("orient", "auto");
+
+            var arrow_path = "M2,2 L10,6 L2,10 L6,6 L2,2";
+
+            arrowMarker
+                .append("path")
+                .attr("d", arrow_path)
+                .attr("fill", "#000");
+
+            var line = svg
+                .append("line")
+                .attr("x1", 0)
+                .attr("y1", 0)
+                .attr("x2", 200)
+                .attr("y2", 50)
+                .attr("stroke", "url(#orange_red)")
+                .attr("stroke-width", 2)
+                .attr("marker-end", "url(#arrow)");
+        }
+    }
+};
+</script>
+<style scoped>
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+#chart {
+    width: 800px;
+    height: 800px;
+    display: block;
+    cursor: pointer;
+    background-color: #a3f5cf;
+}
+</style>
