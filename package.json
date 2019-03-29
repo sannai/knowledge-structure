@@ -5,6 +5,7 @@
     "license": "MIT",
     "dependencies": {
         "d3": "^5.9.2",
+        "dayjs": "^1.8.11",
         "echarts": "^4.2.1",
         "vue": "^2.6.10",
         "vue-hot-reload-api": "^2.3.3"

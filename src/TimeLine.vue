@@ -3,54 +3,76 @@
 </template>
 <script>
 import echarts from "echarts";
+import dayjs from "dayjs";
 export default {
     name: "TimeLine",
     data() {
         return {
-            data: "",
-            myChart: ""
+            data: [],
+            myChart: "",
+            links: []
         };
     },
     mounted() {
         fetch("http://localhost:3000/api")
             .then(res => res.json())
-            .then(data => (this.data = data.data));
+            .then(data => {
+                console.log(data.data);
+                const values = data.data.children.map((v, i) => [
+                    dayjs()
+                        .add(i, "day")
+                        .format("YYYY/M/D"),
+                    v.value
+                ]);
+                this.data = values;
+                this.links = values
+                    .map((v, i) => ({ source: i, target: i + 1 }))
+                    .slice(0, -1);
+            });
         this.myChart = echarts.init(document.getElementById("time-line"));
     },
     computed: {
         option() {
             return {
-                tooltip: {
-                    trigger: "item",
-                    triggerOn: "mousemove"
+                xAxis: {
+                    type: "time",
+                    min: v => v.min - 6 * 60 * 60 * 1000,
+                    max: v => v.max + 6 * 60 * 60 * 1000
+                },
+                yAxis: {
+                    type: "value"
                 },
                 series: [
                     {
-                        type: "tree",
-                        data: [this.data] || [],
-                        top: "1%",
-                        left: "6%",
-                        bottom: "3%",
-                        right: "6%",
-                        symbolSize: 16,
-                        // symbolSize: value => (value ? value * 3 : 16),
+                        type: "graph",
+                        layout: "none",
+                        coordinateSystem: "cartesian2d",
+                        symbolSize: 40,
                         label: {
                             normal: {
-                                position: "bottom",
-                                fontSize: 14
+                                show: true
                             }
                         },
-                        leaves: {
-                            label: {
-                                normal: {
-                                    position: "bottom"
-                                }
+                        edgeSymbol: ["circle", "arrow"],
+                        edgeSymbolSize: [4, 10],
+                        data: this.data,
+                        links: this.links,
+                        lineStyle: {
+                            normal: {
+                                color: new echarts.graphic.LinearGradient(
+                                    0,
+                                    0,
+                                    0,
+                                    1,
+                                    [
+                                        { offset: 0, color: "#04B4F0" },
+                                        { offset: 1, color: "#710F42" }
+                                    ]
+                                ),
+                                width: 3
+                                // color: "#2f4554"
                             }
-                        },
-
-                        expandAndCollapse: true,
-                        animationDuration: 550,
-                        animationDurationUpdate: 750
+                        }
                     }
                 ]
             };
